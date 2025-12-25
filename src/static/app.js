@@ -3,9 +3,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const template = document.getElementById("activity-template");
 
-  function createParticipantItem(email) {
+  function createParticipantItem(email, activityName) {
     const li = document.createElement("li");
-    li.innerHTML = `<span class="participant-bullet" aria-hidden="true"></span><span class="participant-email">${email}</span>`;
+
+    const bullet = document.createElement("span");
+    bullet.className = "participant-bullet";
+    bullet.setAttribute("aria-hidden", "true");
+
+    const span = document.createElement("span");
+    span.className = "participant-email";
+    span.textContent = email;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "participant-remove";
+    removeBtn.setAttribute("aria-label", `Remove ${email}`);
+    removeBtn.textContent = "✖";
+
+    removeBtn.addEventListener("click", async () => {
+      if (!confirm(`Unregister ${email} from ${activityName}?`)) return;
+      try {
+        const res = await fetch(`/activities/${encodeURIComponent(activityName)}/participants?email=${encodeURIComponent(email)}`, {
+          method: "DELETE"
+        });
+        const json = await res.json();
+        if (!res.ok) throw json;
+        // Refresh activities to reflect removal
+        await loadActivities();
+      } catch (err) {
+        console.error("Failed to remove participant", err);
+        alert(err?.detail || err?.message || "Failed to remove participant");
+      }
+    });
+
+    li.appendChild(bullet);
+    li.appendChild(span);
+    li.appendChild(removeBtn);
     return li;
   }
 
@@ -29,7 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const ul = node.querySelector(".participants-list");
       if (info.participants && info.participants.length) {
-        info.participants.forEach(email => ul.appendChild(createParticipantItem(email)));
+        info.participants.forEach(email => ul.appendChild(createParticipantItem(email, name)));
       } else {
         const li = document.createElement("li");
         li.textContent = "No participants yet.";
@@ -74,8 +106,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw json;
       messageEl.textContent = json.message || "Signed up!";
       messageEl.className = "message success";
+      // clear form input
+      document.getElementById("email").value = "";
       // refresh list to show new participant
-      loadActivities();
+      await loadActivities();
     } catch (err) {
       const msg = err?.detail || err?.message || "Signup failed";
       messageEl.textContent = msg;
